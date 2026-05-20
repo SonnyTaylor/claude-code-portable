@@ -6,7 +6,8 @@ Run [Claude Code](https://docs.anthropic.com/en/docs/claude-code) from a USB dri
 
 1. **Download** this repo (or grab the [latest release](../../releases))
 2. **Run the launcher:**
-   - **Windows:** Double-click `claude.cmd`
+   - **Windows (PowerShell):** `powershell -ExecutionPolicy Bypass -File claude.ps1`
+   - **Windows (fallback):** Double-click `claude.cmd`
    - **macOS/Linux:** Run `./claude.sh`
 3. **First run** downloads the Claude Code binary and (on Windows) Portable Git automatically
 4. **Log in** when Claude Code opens your browser, or use an API key via the `config` file
@@ -24,6 +25,8 @@ The launcher scripts download the official Claude Code binary from Anthropic's s
 | `tmp/` | Auto-created | Temporary files |
 | `git/` | Auto-created (Windows) | Portable Git (if not installed on system) |
 | `config` | You create (optional) | API key, proxy URL - see `config.example` |
+| `claude.ps1` | Included | Primary Windows launcher (PowerShell) |
+| `claude.cmd` | Included | Windows fallback when PowerShell is unavailable |
 
 **Nothing is written outside this folder.** Plug the drive into another machine and pick up where you left off.
 
@@ -46,27 +49,41 @@ ANTHROPIC_BASE_URL=https://your-proxy.example.com
 
 ```bash
 # Launch Claude Code
-claude.cmd                   # Windows
-./claude.sh                  # macOS/Linux
+.\claude.ps1                  # Windows (PowerShell)
+claude.cmd                    # Windows (CMD fallback)
+./claude.sh                   # macOS/Linux
 
 # Launch in a specific folder
-claude.cmd C:\myproject      # Windows (or drag-and-drop a folder onto claude.cmd)
-./claude.sh ~/myproject      # macOS/Linux
+.\claude.ps1 C:\myproject     # Windows (or drag-and-drop a folder)
+claude.cmd C:\myproject       # Windows fallback
+./claude.sh ~/myproject       # macOS/Linux
 
 # Update to the latest version
+.\claude.ps1 update
 claude.cmd update
 ./claude.sh update
 
 # Pin a specific version
+.\claude.ps1 update 2.1.80
 claude.cmd update 2.1.80
 ./claude.sh update 2.1.80
 
 # Check installed version
+.\claude.ps1 version
 claude.cmd version
 ./claude.sh version
 ```
 
 Auto-updates are disabled by design. The binary stays exactly where you put it until you run `update`.
+
+## Windows Launchers
+
+On Windows, **PowerShell is preferred** and CMD is used only as a fallback:
+
+- **`claude.ps1`** -- Primary launcher. Supports full error handling, native JSON parsing, and faster downloads.
+- **`claude.cmd`** -- Fallback launcher. Automatically detects if `claude.ps1` and PowerShell are available and forwards to them. If PowerShell is unavailable, it runs the full CMD implementation.
+
+Both launchers support the same commands and behavior.
 
 ## What Gets Downloaded
 

@@ -33,6 +33,7 @@ show_help() {
     ./claude.sh [folder]         Launch in specified folder
     ./claude.sh update           Download the latest Claude Code version
     ./claude.sh update [version] Download a specific version (e.g. 2.1.80)
+    ./claude.sh setup            Pre-download everything for offline use
     ./claude.sh version          Show installed version
     ./claude.sh --help           Show this help
 
@@ -177,7 +178,7 @@ if [ ! -f "$DATA_DIR/CLAUDE.md" ]; then
 This is a portable Claude Code installation. All configuration and state
 is stored in this folder's data/ directory, not in ~/.claude/.
 
-- Auto-updates are disabled. Update manually: `claude.cmd update` or `./claude.sh update`
+- Auto-updates are disabled. Update manually: `.\\claude.ps1 update` or `./claude.sh update`
 - Do not suggest modifying ~/.claude/ - this install uses a custom CLAUDE_CONFIG_DIR.
 CLAUDEMD
 fi
@@ -208,6 +209,26 @@ case "${1:-}" in
         rm -f "$BIN_DIR/claude"
         download_claude "${2:-}"
         echo "  Update complete!"
+        exit 0
+        ;;
+    setup)
+        echo
+        echo "  Claude Code Portable - Offline Setup"
+        echo "  ====================================="
+        echo "  Pre-downloads everything so this drive works offline."
+        echo
+        if ! check_online; then
+            echo "  [Error] No internet connection. Run setup on a machine with internet."
+            exit 1
+        fi
+        # Download Claude Code if needed
+        if [ ! -x "$BIN_DIR/claude" ]; then
+            download_claude
+        else
+            echo "  Claude Code v$(cat "$BIN_DIR/.version") already downloaded."
+        fi
+        echo
+        echo "  Setup complete! This drive is ready for offline use."
         exit 0
         ;;
 esac

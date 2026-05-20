@@ -1,5 +1,6 @@
 # Force correct line endings per file type
 *.cmd text eol=crlf
+*.ps1 text eol=crlf
 *.sh  text eol=lf
 *.md  text eol=lf
 *.example text eol=lf

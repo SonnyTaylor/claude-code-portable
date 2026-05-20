@@ -13,3 +13,6 @@ desktop.ini
 
 # Data directory (user's portable state)
 data/
+
+# Local IDE/editor state
+.claude/

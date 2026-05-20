@@ -1,8 +1,20 @@
 @echo off
+:: ---- Try PowerShell first; fallback to CMD below ----
+set "_PS1=%~dp0claude.ps1"
+if exist "%_PS1%" (
+    where pwsh.exe >nul 2>&1 && (
+        pwsh.exe -NoProfile -ExecutionPolicy Bypass -File "%_PS1%" %*
+        exit /b %errorlevel%
+    )
+    where powershell.exe >nul 2>&1 && (
+        powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%_PS1%" %*
+        exit /b %errorlevel%
+    )
+)
 setlocal enabledelayedexpansion
 
 :: ============================================================
-::  Claude Code Portable - Windows Launcher
+::  Claude Code Portable - Windows Launcher (CMD Fallback)
 ::  https://github.com/anthropics/claude-code (official)
 :: ============================================================
 
@@ -34,7 +46,7 @@ if not exist "!DATA_DIR!\CLAUDE.md" (
         echo This is a portable Claude Code installation. All configuration and state
         echo is stored in this folder's data/ directory, not in ~/.claude/.
         echo.
-        echo - Auto-updates are disabled. Update manually: `claude.cmd update` or `./claude.sh update`
+        echo - Auto-updates are disabled. Update manually: `.\claude.ps1 update` or `./claude.sh update`
         echo - Do not suggest modifying ~/.claude/ - this install uses a custom CLAUDE_CONFIG_DIR.
     ) > "!DATA_DIR!\CLAUDE.md"
 )
@@ -44,6 +56,7 @@ if /i "%~1"=="update" goto :cmd_update
 if /i "%~1"=="version" goto :cmd_version
 if /i "%~1"=="--version" goto :cmd_version
 if /i "%~1"=="-v" goto :cmd_version
+if /i "%~1"=="setup" goto :cmd_setup
 if /i "%~1"=="--help" goto :cmd_help
 if /i "%~1"=="-h" goto :cmd_help
 
@@ -288,6 +301,49 @@ echo.
 exit /b 0
 
 
+:cmd_setup
+echo.
+echo   Claude Code Portable - Offline Setup
+echo   =====================================
+echo   Pre-downloads everything so this drive works offline.
+echo.
+call :check_online
+if errorlevel 1 (
+    echo   [Error] No internet connection. Run setup on a machine with internet.
+    pause
+    exit /b 1
+)
+:: Download Claude Code if needed
+if not exist "!BIN_DIR!\claude.exe" (
+    call :download_claude
+    if errorlevel 1 (
+        echo   [Error] Failed to download Claude Code.
+        pause
+        exit /b 1
+    )
+) else (
+    set /p SETUP_VER=<"!BIN_DIR!\.version"
+    echo   Claude Code v!SETUP_VER! already downloaded.
+)
+:: Always download Portable Git (even if this machine has system Git)
+if not exist "!GIT_DIR!\bin\bash.exe" (
+    echo   Downloading Portable Git...
+    echo.
+    call :download_git
+    if errorlevel 1 (
+        echo   [Error] Failed to download Portable Git.
+        pause
+        exit /b 1
+    )
+) else (
+    echo   Portable Git already downloaded.
+)
+echo.
+echo   Setup complete! This drive is ready for offline use.
+pause
+exit /b 0
+
+
 :cmd_help
 echo.
 echo   Claude Code Portable
@@ -298,6 +354,7 @@ echo     claude.cmd                  Launch Claude Code in current directory
 echo     claude.cmd [folder]         Launch in folder (drag-and-drop supported)
 echo     claude.cmd update           Download the latest Claude Code version
 echo     claude.cmd update [version] Download a specific version (e.g. 2.1.80)
+echo     claude.cmd setup            Pre-download everything for offline use
 echo     claude.cmd version          Show installed version
 echo     claude.cmd --help           Show this help
 echo.
