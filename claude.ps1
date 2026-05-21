@@ -194,6 +194,119 @@ function Download-Git {
     Write-Host ''
 }
 
+function Invoke-Doctor {
+    Write-Host ''
+    Write-Host '  Claude Code Portable - Diagnostics'
+    Write-Host '  =================================='
+    Write-Host ''
+
+    $issues = 0
+    $warns = 0
+
+    # Check directories
+    foreach ($dir in @($BIN_DIR, $DATA_DIR, $TMP_DIR)) {
+        $name = Split-Path -Leaf $dir
+        if (Test-Path $dir) {
+            try {
+                $testFile = Join-Path $dir "write-test-$([Guid]::NewGuid().ToString().Substring(0,8))"
+                [void](New-Item -ItemType File -Path $testFile -Force -ErrorAction Stop)
+                Remove-Item $testFile -Force -ErrorAction SilentlyContinue
+                Write-Host "  [OK]    Directory exists and writable: $name\"
+            } catch {
+                Write-Host "  [WARN]  Directory exists but not writable: $name\"
+                $warns++
+            }
+        } else {
+            Write-Host "  [MISS]  Directory missing: $name\"
+            $issues++
+        }
+    }
+
+    # Check binary
+    $exePath = Join-Path $BIN_DIR 'claude.exe'
+    if (Test-Path $exePath) {
+        $size = (Get-Item $exePath).Length
+        if ($size -gt 0) {
+            Write-Host "  [OK]    Binary found ($(($size/1MB).ToString('F1')) MB)"
+            $versionFile = Join-Path $BIN_DIR '.version'
+            if (Test-Path $versionFile) {
+                $ver = (Get-Content $versionFile -Raw).Trim()
+                Write-Host "  [OK]    Version: v$ver"
+            } else {
+                Write-Host '  [WARN]  Binary found but .version file missing'
+                $warns++
+            }
+        } else {
+            Write-Host '  [FAIL]  Binary is empty (0 bytes)'
+            $issues++
+        }
+    } else {
+        Write-Host '  [MISS]  Binary not found in bin\'
+        $issues++
+    }
+
+    # Check Git Bash
+    $gitPath = Find-GitBash
+    if ($gitPath) {
+        Write-Host "  [OK]    Git Bash found: $gitPath"
+    } else {
+        Write-Host '  [MISS]  Git Bash not found'
+        Write-Host '          Install Git for Windows or run: .\claude.ps1 setup'
+        $issues++
+    }
+
+    # Check config
+    $configFile = Join-Path $ROOT 'config'
+    if (Test-Path $configFile) {
+        $configIssues = 0
+        $lineNum = 0
+        Get-Content $configFile | ForEach-Object {
+            $lineNum++
+            $line = $_.Trim()
+            if ([string]::IsNullOrEmpty($line) -or $line -match '^#') { return }
+            if ($line -notmatch '^\S+\s*=.*$') {
+                Write-Host "  [WARN]  Config line $lineNum may be malformed: $line"
+                $configIssues++
+            }
+        }
+        if ($configIssues -eq 0) {
+            Write-Host '  [OK]    Config file syntax valid'
+        } else {
+            $warns += $configIssues
+        }
+    } else {
+        Write-Host '  [INFO]  No config file (optional - browser login works without it)'
+    }
+
+    # Check disk space
+    $drive = (Get-Item $ROOT).PSDrive
+    $freeGB = [math]::Round($drive.Free / 1GB, 1)
+    if ($freeGB -gt 1) {
+        Write-Host "  [OK]    Free space: $freeGB GB"
+    } else {
+        Write-Host "  [WARN]  Low disk space: $freeGB GB"
+        $warns++
+    }
+
+    # Check online
+    if (Test-Online) {
+        Write-Host '  [OK]    Internet connection available'
+    } else {
+        Write-Host '  [WARN]  No internet connection detected'
+        $warns++
+    }
+
+    Write-Host ''
+    if ($issues -eq 0 -and $warns -eq 0) {
+        Write-Host '  All checks passed.'
+    } elseif ($issues -eq 0) {
+        Write-Host "  All critical checks passed. $warns warning(s) found."
+    } else {
+        Write-Host "  Found $issues issue(s) and $warns warning(s). See details above."
+    }
+    Write-Host ''
+}
+
 function Show-Help {
     Write-Host ''
     Write-Host '  Claude Code Portable'
@@ -205,6 +318,7 @@ function Show-Help {
     Write-Host '    .\claude.ps1 update           Download the latest Claude Code version'
     Write-Host '    .\claude.ps1 update [version] Download a specific version (e.g. 2.1.80)'
     Write-Host '    .\claude.ps1 setup            Pre-download everything for offline use'
+    Write-Host '    .\claude.ps1 doctor           Diagnose installation and environment'
     Write-Host '    .\claude.ps1 version          Show installed version'
     Write-Host '    .\claude.ps1 --help           Show this help'
     Write-Host ''
@@ -267,6 +381,7 @@ switch -Wildcard ($cmd) {
     '--version' { }
     '-v' { }
     'setup' { }
+    'doctor' { }
     '--help' { }
     '-h' { }
     default {
@@ -316,6 +431,11 @@ if ($cmd -eq 'setup') {
     }
     Write-Host ''
     Write-Host '  Setup complete! This drive is ready for offline use.'
+    exit 0
+}
+
+if ($cmd -eq 'doctor') {
+    Invoke-Doctor
     exit 0
 }
 

@@ -34,6 +34,7 @@ show_help() {
     ./claude.sh update           Download the latest Claude Code version
     ./claude.sh update [version] Download a specific version (e.g. 2.1.80)
     ./claude.sh setup            Pre-download everything for offline use
+    ./claude.sh doctor           Diagnose installation and environment
     ./claude.sh version          Show installed version
     ./claude.sh --help           Show this help
 
@@ -229,6 +230,116 @@ case "${1:-}" in
         fi
         echo
         echo "  Setup complete! This drive is ready for offline use."
+        exit 0
+        ;;
+    doctor)
+        echo
+        echo "  Claude Code Portable - Diagnostics"
+        echo "  =================================="
+        echo
+        issues=0
+        warns=0
+
+        # Check directories
+        for d in "$BIN_DIR" "$DATA_DIR" "$TMP_DIR"; do
+            name=$(basename "$d")
+            if [ -d "$d" ]; then
+                if [ -w "$d" ]; then
+                    echo "  [OK]    Directory exists and writable: $name/"
+                else
+                    echo "  [WARN]  Directory exists but not writable: $name/"
+                    warns=$((warns + 1))
+                fi
+            else
+                echo "  [MISS]  Directory missing: $name/"
+                issues=$((issues + 1))
+            fi
+        done
+
+        # Check binary
+        if [ -f "$BIN_DIR/claude" ]; then
+            size=$(stat -f%z "$BIN_DIR/claude" 2>/dev/null || stat -c%s "$BIN_DIR/claude" 2>/dev/null || echo 0)
+            if [ "$size" -gt 0 ]; then
+                size_mb=$((size / 1024 / 1024))
+                echo "  [OK]    Binary found (${size_mb} MB)"
+                if [ -f "$BIN_DIR/.version" ]; then
+                    ver=$(cat "$BIN_DIR/.version")
+                    echo "  [OK]    Version: v$ver"
+                else
+                    echo "  [WARN]  Binary found but .version file missing"
+                    warns=$((warns + 1))
+                fi
+            else
+                echo "  [FAIL]  Binary is empty (0 bytes)"
+                issues=$((issues + 1))
+            fi
+        else
+            echo "  [MISS]  Binary not found in bin/"
+            issues=$((issues + 1))
+        fi
+
+        # Check Git
+        if command -v git &>/dev/null; then
+            git_path=$(command -v git)
+            echo "  [OK]    Git found: $git_path"
+        else
+            echo "  [MISS]  Git not found in PATH"
+            echo "          Install Git or ensure it is available."
+            issues=$((issues + 1))
+        fi
+
+        # Check config
+        if [ -f "$ROOT/config" ]; then
+            config_issues=0
+            line_num=0
+            while IFS= read -r line; do
+                line_num=$((line_num + 1))
+                line_trimmed=$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+                [ -z "$line_trimmed" ] && continue
+                case "$line_trimmed" in
+                    \#*) continue ;;
+                esac
+                if ! echo "$line_trimmed" | grep -q '='; then
+                    echo "  [WARN]  Config line $line_num may be malformed: $line"
+                    config_issues=$((config_issues + 1))
+                fi
+            done < "$ROOT/config"
+            if [ "$config_issues" -eq 0 ]; then
+                echo "  [OK]    Config file syntax valid"
+            else
+                warns=$((warns + config_issues))
+            fi
+        else
+            echo "  [INFO]  No config file (optional - browser login works without it)"
+        fi
+
+        # Check disk space
+        free_mb=$(df -m "$ROOT" | awk 'NR==2 {print $4}')
+        free_gb=$((free_mb / 1024))
+        if [ "$free_gb" -gt 1 ]; then
+            echo "  [OK]    Free space: ${free_gb} GB"
+        else
+            echo "  [WARN]  Low disk space: ${free_gb} GB"
+            warns=$((warns + 1))
+        fi
+
+        # Check online
+        if check_online; then
+            echo "  [OK]    Internet connection available"
+        else
+            echo "  [WARN]  No internet connection detected"
+            warns=$((warns + 1))
+        fi
+
+        echo
+        if [ "$issues" -eq 0 ] && [ "$warns" -eq 0 ]; then
+            echo "  All checks passed."
+        elif [ "$issues" -eq 0 ]; then
+            echo "  All critical checks passed. ${warns} warning(s) found."
+        else
+            echo "  Found ${issues} issue(s) and ${warns} warning(s). See details above."
+        fi
+        echo
         exit 0
         ;;
 esac

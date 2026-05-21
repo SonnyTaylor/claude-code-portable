@@ -57,6 +57,7 @@ if /i "%~1"=="version" goto :cmd_version
 if /i "%~1"=="--version" goto :cmd_version
 if /i "%~1"=="-v" goto :cmd_version
 if /i "%~1"=="setup" goto :cmd_setup
+if /i "%~1"=="doctor" goto :cmd_doctor
 if /i "%~1"=="--help" goto :cmd_help
 if /i "%~1"=="-h" goto :cmd_help
 
@@ -355,6 +356,7 @@ echo     claude.cmd [folder]         Launch in folder (drag-and-drop supported)
 echo     claude.cmd update           Download the latest Claude Code version
 echo     claude.cmd update [version] Download a specific version (e.g. 2.1.80)
 echo     claude.cmd setup            Pre-download everything for offline use
+echo     claude.cmd doctor           Diagnose installation and environment
 echo     claude.cmd version          Show installed version
 echo     claude.cmd --help           Show this help
 echo.
@@ -365,4 +367,84 @@ echo     bin\                        Claude Code binary (auto-downloaded)
 echo     git\                        Portable Git (auto-downloaded if needed)
 echo     tmp\                        Temporary files
 echo.
+exit /b 0
+
+
+:cmd_doctor
+echo.
+echo   Claude Code Portable - Diagnostics
+echo   ==================================
+echo.
+set /a DOCTOR_ISSUES=0
+set /a DOCTOR_WARNS=0
+
+:: Check directories
+for %%d in ("!BIN_DIR!" "!DATA_DIR!" "!TMP_DIR!") do (
+    if exist "%%~d\" (
+        echo   [OK]    Directory exists: %%~d
+    ) else (
+        echo   [MISS]  Directory missing: %%~d
+        set /a DOCTOR_ISSUES+=1
+    )
+)
+
+:: Check binary
+if exist "!BIN_DIR!\claude.exe" (
+    for %%z in ("!BIN_DIR!\claude.exe") do (
+        if %%~zz gtr 0 (
+            echo   [OK]    Binary found ^(%%~zz bytes^)
+        ) else (
+            echo   [FAIL]  Binary is empty ^(0 bytes^)
+            set /a DOCTOR_ISSUES+=1
+        )
+    )
+    if exist "!BIN_DIR!\.version" (
+        set /p DOCTOR_VER=<"!BIN_DIR!\.version"
+        echo   [OK]    Version: v!DOCTOR_VER!
+    ) else (
+        echo   [WARN]  Binary found but .version file missing
+        set /a DOCTOR_WARNS+=1
+    )
+) else (
+    echo   [MISS]  Binary not found in bin\
+    set /a DOCTOR_ISSUES+=1
+)
+
+:: Check Git Bash
+set "DOCTOR_GIT="
+call :find_git_bash
+if defined GIT_BASH_PATH (
+    echo   [OK]    Git Bash found: !GIT_BASH_PATH!
+) else (
+    echo   [MISS]  Git Bash not found
+    echo           Install Git for Windows or run: claude.cmd setup
+    set /a DOCTOR_ISSUES+=1
+)
+
+:: Check config
+if exist "!ROOT!\config" (
+    echo   [OK]    Config file exists
+) else (
+    echo   [INFO]  No config file ^(optional - browser login works without it^)
+)
+
+:: Check online
+call :check_online
+if errorlevel 1 (
+    echo   [WARN]  No internet connection detected
+    set /a DOCTOR_WARNS+=1
+) else (
+    echo   [OK]    Internet connection available
+)
+
+echo.
+if !DOCTOR_ISSUES! equ 0 if !DOCTOR_WARNS! equ 0 (
+    echo   All checks passed.
+) else if !DOCTOR_ISSUES! equ 0 (
+    echo   All critical checks passed. !DOCTOR_WARNS! warning^(s^) found.
+) else (
+    echo   Found !DOCTOR_ISSUES! issue^(s^) and !DOCTOR_WARNS! warning^(s^). See details above.
+)
+echo.
+pause
 exit /b 0
